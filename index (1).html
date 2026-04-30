@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resilient Clinical Outcome Prediction | CS4082</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --maroon: #7B0D1E;
+  --maroon-dark: #4A0810;
+  --maroon-light: #A01428;
+  --neon-green: #00FF88;
+  --neon-green-dim: #00CC66;
+  --neon-green-glow: rgba(0,255,136,0.3);
+  --white: #F8F4F0;
+  --white-pure: #FFFFFF;
+  --cream: #FDF6EE;
+  --gray-light: #E8E0D8;
+  --gray-mid: #B0A898;
+  --dark: #0D0608;
+  --dark-mid: #1A0C10;
+  --card-bg: rgba(20,6,10,0.85);
+  --border: rgba(0,255,136,0.2);
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--dark);
+  color: var(--white);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* CUSTOM CURSOR */
+.cursor {
+  position: fixed; width: 12px; height: 12px;
+  background: var(--neon-green); border-radius: 50%;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%,-50%);
+  transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+  mix-blend-mode: exclusion;
+}
+.cursor-ring {
+  position: fixed; width: 36px; height: 36px;
+  border: 1.5px solid var(--neon-green); border-radius: 50%;
+  pointer-events: none; z-index: 9998;
+  transform: translate(-50%,-50%);
+  transition: transform 0.15s ease, width 0.3s, height 0.3s;
+  opacity: 0.6;
+}
+body:has(a:hover) .cursor, body:has(button:hover) .cursor { width: 20px; height: 20px; background: var(--maroon-light); }
+body:has(a:hover) .cursor-ring, body:has(button:hover) .cursor-ring { width: 50px; height: 50px; }
+
+/* ECG LINE HEADER */
+.ecg-header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: rgba(13,6,8,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 48px;
+  height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.ecg-logo {
+  font-family: var(--font-mono);
+  font-size: 13px; color: var(--neon-green);
+  letter-spacing: 3px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px;
+}
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--neon-green);
+  animation: pulse 1.4s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 0 0 var(--neon-green-glow); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 8px transparent; }
+}
+nav { display: flex; gap: 32px; }
+nav a {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--gray-mid); text-decoration: none; letter-spacing: 2px;
+  text-transform: uppercase; transition: color 0.2s;
+}
+nav a:hover { color: var(--neon-green); }
+
+/* ECG CANVAS STRIP */
+.ecg-strip {
+  position: fixed; top: 64px; left: 0; right: 0; z-index: 999;
+  height: 40px; background: rgba(13,6,8,0.6);
+  overflow: hidden;
+}
+.ecg-strip canvas { width: 100%; height: 100%; }
+
+/* HERO */
+.hero {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  position: relative; padding: 120px 48px 60px;
+  overflow: hidden;
+}
+.hero-grid-bg {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridMove 20s linear infinite;
+}
+@keyframes gridMove {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(60px); }
+}
+.hero-glow-left {
+  position: absolute; left: -200px; top: 20%;
+  width: 600px; height: 600px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(123,13,30,0.4) 0%, transparent 70%);
+  animation: breathe 6s ease-in-out infinite;
+}
+.hero-glow-right {
+  position: absolute; right: -100px; bottom: 10%;
+  width: 400px; height: 400px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,255,136,0.12) 0%, transparent 70%);
+  animation: breathe 8s ease-in-out infinite reverse;
+}
+@keyframes breathe {
+  0%,100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+.hero-badge {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--neon-green); letter-spacing: 4px; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 40px;
+  padding: 8px 24px; margin-bottom: 32px;
+  background: rgba(0,255,136,0.05);
+  animation: fadeSlideDown 0.8s ease forwards;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 7vw, 7rem);
+  font-weight: 800; line-height: 0.95;
+  text-align: center; letter-spacing: -2px;
+  animation: fadeSlideUp 0.9s 0.2s ease both;
+  max-width: 900px;
+}
+.hero-title .maroon-word { color: var(--maroon-light); }
+.hero-title .green-word {
+  color: var(--neon-green);
+  text-shadow: 0 0 40px var(--neon-green-glow);
+}
+.hero-subtitle {
+  font-family: var(--font-body); font-size: 18px;
+  color: var(--gray-mid); max-width: 600px;
+  text-align: center; margin-top: 24px; line-height: 1.7;
+  font-weight: 300;
+  animation: fadeSlideUp 0.9s 0.4s ease both;
+}
+.hero-stats {
+  display: flex; gap: 48px; margin-top: 56px;
+  animation: fadeSlideUp 0.9s 0.6s ease both;
+}
+.hero-stat { text-align: center; }
+.hero-stat-num {
+  font-family: var(--font-mono); font-size: 36px;
+  color: var(--neon-green); display: block;
+  text-shadow: 0 0 20px var(--neon-green-glow);
+}
+.hero-stat-label {
+  font-size: 11px; color: var(--gray-mid);
+  letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;
+}
+.hero-scroll {
+  position: absolute; bottom: 40px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; animation: fadeSlideUp 1s 1s ease both;
+}
+.hero-scroll span {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--gray-mid); letter-spacing: 3px;
+}
+.scroll-line {
+  width: 1px; height: 60px;
+  background: linear-gradient(to bottom, var(--neon-green), transparent);
+  animation: scrollLine 2s infinite;
+}
+@keyframes scrollLine { 0% { opacity: 0; transform: scaleY(0); transform-origin: top; } 50% { opacity: 1; transform: scaleY(1); } 100% { opacity: 0; transform: scaleY(1); } }
+
+@keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeSlideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+/* SECTION BASE */
+section { padding: 120px 48px; position: relative; }
+.section-tag {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--neon-green); letter-spacing: 4px; text-transform: uppercase;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
+}
+.section-tag::before {
+  content: ''; display: block; width: 32px; height: 1px; background: var(--neon-green);
+}
+.section-title {
+  font-family: var(--font-display); font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 800; line-height: 1.05; letter-spacing: -1.5px;
+  margin-bottom: 56px;
+}
+.section-title span { color: var(--maroon-light); }
+
+/* OVERVIEW SECTION */
+.overview { background: var(--dark-mid); }
+.overview-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 48px; align-items: start;
+}
+.overview-text p {
+  font-size: 17px; line-height: 1.8; color: #C4B8B0;
+  margin-bottom: 20px; font-weight: 300;
+}
+.overview-text strong { color: var(--white); font-weight: 500; }
+.dataset-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 36px;
+  position: relative; overflow: hidden;
+}
+.dataset-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; background: linear-gradient(90deg, var(--maroon), var(--neon-green));
+}
+.dataset-card-title {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--neon-green); letter-spacing: 3px; text-transform: uppercase;
+  margin-bottom: 24px;
+}
+.dataset-items { display: flex; flex-direction: column; gap: 16px; }
+.dataset-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.dataset-item:last-child { border-bottom: none; }
+.di-label { font-size: 13px; color: var(--gray-mid); font-family: var(--font-mono); }
+.di-value { font-size: 20px; font-family: var(--font-mono); color: var(--white); font-weight: 700; }
+.di-value.green { color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green-glow); }
+
+/* HOSPITAL CROSS DIVIDER */
+.cross-divider {
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 0; gap: 16px;
+}
+.cross-sym {
+  font-size: 24px; color: var(--maroon-light);
+  animation: rotateCross 8s linear infinite;
+}
+@keyframes rotateCross { to { transform: rotate(360deg); } }
+.cross-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(0,255,136,0.3), transparent); }
+
+/* VISUALIZATIONS */
+.viz-section { background: var(--dark); }
+.viz-tabs {
+  display: flex; gap: 8px; margin-bottom: 40px;
+  border-bottom: 1px solid var(--border); padding-bottom: 0;
+}
+.viz-tab {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--gray-mid);
+  background: none; border: none; cursor: pointer;
+  padding: 12px 24px; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; transition: all 0.2s;
+}
+.viz-tab.active { color: var(--neon-green); border-bottom-color: var(--neon-green); }
+.viz-tab:hover { color: var(--white); }
+.viz-panel { display: none; animation: fadeIn 0.4s ease; }
+.viz-panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.viz-img-container {
+  border: 1px solid var(--border); border-radius: 16px;
+  overflow: hidden; position: relative;
+  background: rgba(255,255,255,0.02);
+}
+.viz-img-container img { width: 100%; display: block; }
+.viz-caption {
+  padding: 20px 24px; background: rgba(0,0,0,0.5);
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--gray-mid); letter-spacing: 1px;
+}
+
+/* FINDINGS */
+.findings { background: var(--dark-mid); }
+.findings-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.finding-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; padding: 36px; cursor: pointer;
+  transition: all 0.3s; position: relative; overflow: hidden;
+}
+.finding-card::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(123,13,30,0.1), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.finding-card:hover { transform: translateY(-4px); border-color: rgba(0,255,136,0.5); }
+.finding-card:hover::after { opacity: 1; }
+.finding-icon {
+  font-size: 40px; margin-bottom: 20px; display: block;
+  animation: iconFloat 3s ease-in-out infinite;
+}
+@keyframes iconFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.finding-card:nth-child(2) .finding-icon { animation-delay: 0.5s; }
+.finding-card:nth-child(3) .finding-icon { animation-delay: 1s; }
+.finding-card:nth-child(4) .finding-icon { animation-delay: 1.5s; }
+.finding-card:nth-child(5) .finding-icon { animation-delay: 2s; }
+.finding-card:nth-child(6) .finding-icon { animation-delay: 2.5s; }
+.finding-num {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--maroon-light); letter-spacing: 3px; margin-bottom: 10px;
+}
+.finding-title {
+  font-family: var(--font-display); font-size: 20px;
+  font-weight: 700; margin-bottom: 12px; color: var(--white);
+}
+.finding-body { font-size: 14px; color: var(--gray-mid); line-height: 1.7; }
+.finding-detail {
+  max-height: 0; overflow: hidden; transition: max-height 0.4s ease;
+  font-size: 13px; color: #887A72; line-height: 1.7; margin-top: 0;
+}
+.finding-card.open .finding-detail { max-height: 200px; margin-top: 12px; }
+.finding-toggle {
+  margin-top: 16px; font-family: var(--font-mono); font-size: 11px;
+  color: var(--neon-green); letter-spacing: 2px;
+}
+
+/* MODEL COMPARISON */
+.models { background: var(--dark); }
+.models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.model-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; padding: 36px; position: relative;
+  transition: all 0.3s;
+}
+.model-card.best {
+  border-color: rgba(123,13,30,0.6);
+  background: linear-gradient(135deg, rgba(123,13,30,0.2), var(--card-bg));
+}
+.model-card.best::before {
+  content: 'BEST OVERALL'; position: absolute; top: -1px; right: 24px;
+  background: var(--maroon); color: var(--white);
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+  padding: 4px 12px; border-radius: 0 0 8px 8px;
+}
+.model-name {
+  font-family: var(--font-display); font-size: 22px; font-weight: 800;
+  margin-bottom: 24px; color: var(--white);
+}
+.model-metrics { display: flex; flex-direction: column; gap: 14px; }
+.metric-row { display: flex; flex-direction: column; gap: 6px; }
+.metric-label {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px; color: var(--gray-mid); letter-spacing: 1px;
+}
+.metric-val { color: var(--white); }
+.metric-bar {
+  height: 4px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;
+}
+.metric-fill {
+  height: 100%; border-radius: 4px; width: 0%;
+  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.metric-fill.green { background: linear-gradient(90deg, var(--neon-green-dim), var(--neon-green)); }
+.metric-fill.maroon { background: linear-gradient(90deg, var(--maroon), var(--maroon-light)); }
+
+/* PIPELINE */
+.pipeline { background: var(--dark-mid); }
+.pipeline-steps {
+  display: flex; gap: 0; position: relative;
+  overflow-x: auto; padding-bottom: 24px;
+}
+.pipeline-step {
+  flex: 1; min-width: 160px; text-align: center;
+  position: relative; padding: 0 16px;
+}
+.pipeline-step::after {
+  content: '→'; position: absolute; right: -12px; top: 36px;
+  color: var(--neon-green); font-size: 20px; z-index: 2;
+}
+.pipeline-step:last-child::after { display: none; }
+.step-icon {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: var(--card-bg); border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin: 0 auto 16px;
+  transition: all 0.3s; cursor: default;
+}
+.pipeline-step:hover .step-icon {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 20px var(--neon-green-glow);
+  transform: scale(1.1);
+}
+.step-label {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--gray-mid); letter-spacing: 2px; text-transform: uppercase;
+  line-height: 1.4;
+}
+
+/* SCALABILITY */
+.scalability { background: var(--dark); }
+.scale-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 48px; align-items: center; }
+.scale-stats { display: flex; flex-direction: column; gap: 20px; }
+.scale-stat {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.scale-stat-info span:first-child {
+  display: block; font-family: var(--font-mono); font-size: 11px;
+  color: var(--gray-mid); letter-spacing: 2px; margin-bottom: 4px;
+}
+.scale-stat-info span:last-child {
+  font-family: var(--font-mono); font-size: 22px; color: var(--white); font-weight: 700;
+}
+.scale-badge {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(0,255,136,0.1); color: var(--neon-green);
+  border: 1px solid rgba(0,255,136,0.3);
+}
+
+/* TEAM */
+.team { background: var(--dark-mid); }
+.team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.team-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 36px 28px; text-align: center;
+  transition: all 0.4s; position: relative; overflow: hidden;
+}
+.team-card::before {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--maroon), var(--neon-green));
+  transform: scaleX(0); transition: transform 0.4s;
+}
+.team-card:hover { transform: translateY(-8px); border-color: rgba(0,255,136,0.4); }
+.team-card:hover::before { transform: scaleX(1); }
+.avatar-wrap {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--maroon), var(--dark));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; margin: 0 auto 20px;
+  border: 2px solid var(--border);
+  transition: all 0.3s;
+}
+.team-card:hover .avatar-wrap {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 24px var(--neon-green-glow);
+}
+.team-name {
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  margin-bottom: 6px;
+}
+.team-role {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--neon-green); letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.team-course {
+  font-size: 12px; color: var(--gray-mid); margin-bottom: 16px; line-height: 1.5;
+}
+.team-desc {
+  font-size: 13px; color: #887A72; line-height: 1.6; margin-bottom: 20px;
+}
+.team-btn {
+  display: inline-block; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--neon-green); border: 1px solid rgba(0,255,136,0.4);
+  padding: 8px 20px; border-radius: 40px; text-decoration: none;
+  transition: all 0.2s;
+}
+.team-btn:hover {
+  background: var(--neon-green); color: var(--dark);
+}
+
+/* LINKS */
+.links { background: var(--dark); }
+.links-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.link-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px 32px; text-align: center;
+  text-decoration: none; color: var(--white);
+  transition: all 0.3s; display: block; position: relative; overflow: hidden;
+}
+.link-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(123,13,30,0.15), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.link-card:hover { transform: translateY(-4px); border-color: rgba(0,255,136,0.5); }
+.link-card:hover::before { opacity: 1; }
+.link-icon { font-size: 48px; display: block; margin-bottom: 20px; }
+.link-title {
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.link-desc { font-size: 14px; color: var(--gray-mid); line-height: 1.6; margin-bottom: 24px; }
+.link-url {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--neon-green); letter-spacing: 1px;
+  border-bottom: 1px solid rgba(0,255,136,0.3); padding-bottom: 2px;
+}
+
+/* FOOTER */
+footer {
+  background: var(--maroon-dark);
+  border-top: 1px solid rgba(0,255,136,0.15);
+  padding: 48px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.footer-left { font-family: var(--font-mono); font-size: 12px; color: var(--gray-mid); }
+.footer-right { font-family: var(--font-mono); font-size: 11px; color: rgba(0,255,136,0.5); }
+
+/* SCROLL ANIMATIONS */
+.reveal {
+  opacity: 0; transform: translateY(40px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* HOSPITAL RED CROSS FLOATERS */
+.floater {
+  position: fixed; pointer-events: none; z-index: 0;
+  font-size: 20px; opacity: 0.04;
+  animation: floatAround 15s infinite linear;
+}
+@keyframes floatAround {
+  0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.04; }
+  90% { opacity: 0.04; }
+  100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+}
+
+/* COUNTER ANIMATION */
+.counter { display: inline-block; }
+
+/* PROGRESS BARS */
+.animated-bar { transition: width 1.5s cubic-bezier(0.4,0,0.2,1) !important; }
+
+/* MOBILE */
+@media (max-width: 900px) {
+  section { padding: 80px 24px; }
+  .overview-grid, .scale-grid { grid-template-columns: 1fr; }
+  .findings-grid, .models-grid { grid-template-columns: 1fr; }
+  .team-grid { grid-template-columns: 1fr 1fr; }
+  .links-grid { grid-template-columns: 1fr; }
+  .hero-stats { gap: 24px; flex-wrap: wrap; justify-content: center; }
+  nav { display: none; }
+  .ecg-header { padding: 0 24px; }
+}
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- Floating crosses -->
+<div class="floater" style="left:5%;animation-delay:0s;animation-duration:18s">✚</div>
+<div class="floater" style="left:20%;animation-delay:3s;animation-duration:22s">✚</div>
+<div class="floater" style="left:40%;animation-delay:6s;animation-duration:16s">✚</div>
+<div class="floater" style="left:65%;animation-delay:9s;animation-duration:20s">✚</div>
+<div class="floater" style="left:85%;animation-delay:12s;animation-duration:14s">✚</div>
+
+<!-- HEADER -->
+<header class="ecg-header">
+  <div class="ecg-logo">
+    <div class="pulse-dot"></div>
+    CS4082 · Clinical ML
+  </div>
+  <nav>
+    <a href="#overview">Overview</a>
+    <a href="#visualizations">Visualizations</a>
+    <a href="#findings">Findings</a>
+    <a href="#models">Models</a>
+    <a href="#team">Team</a>
+    <a href="#links">Links</a>
+  </nav>
+</header>
+
+<!-- ECG STRIP -->
+<div class="ecg-strip">
+  <canvas id="ecgCanvas"></canvas>
+</div>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="hero-glow-left"></div>
+  <div class="hero-glow-right"></div>
+  <div class="hero-badge">🏥 Effat University · CS4082 · Machine Learning</div>
+  <h1 class="hero-title">
+    Resilient <span class="maroon-word">Clinical</span><br>
+    Outcome <span class="green-word">Prediction</span>
+  </h1>
+  <p class="hero-subtitle">
+    Predicting hospital readmission for diabetic patients using robust ML pipelines — from noisy medical records to actionable clinical insights.
+  </p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="hero-stat-num" data-count="101766">0</span>
+      <div class="hero-stat-label">Patient Records</div>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num" data-count="50">0</span>
+      <div class="hero-stat-label">Features</div>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num" data-suffix="%">66</span>
+      <div class="hero-stat-label">Best Accuracy</div>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num" data-count="3">0</span>
+      <div class="hero-stat-label">ML Models</div>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <span>SCROLL</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- OVERVIEW -->
+<section class="overview" id="overview">
+  <div class="section-tag">01 · Project Overview</div>
+  <h2 class="section-title">The Clinical <span>Challenge</span></h2>
+  <div class="overview-grid">
+    <div class="overview-text reveal">
+      <p>Hospital readmission within 30 days is a critical quality indicator in healthcare — and a costly problem. This project addresses the challenge of <strong>predicting diabetes patient readmission</strong> from messy, real-world electronic health records (EHR).</p>
+      <p>Using the <strong>UCI Diabetes 130-US Hospitals dataset</strong> spanning 10 years of clinical care (1999–2008), our team built an end-to-end ML pipeline capable of handling severe class imbalance, high missingness, and noisy categorical data.</p>
+      <p>Three models were compared: <strong>Logistic Regression</strong>, <strong>Decision Tree</strong>, and <strong>Random Forest</strong>. Each model was evaluated on AUC-ROC, F1-Score, Precision, Recall, and Accuracy — with particular attention to clinical utility over raw metrics.</p>
+    </div>
+    <div class="dataset-card reveal reveal-delay-2">
+      <div class="dataset-card-title">⚕ Dataset Snapshot</div>
+      <div class="dataset-items">
+        <div class="dataset-item">
+          <span class="di-label">Source</span>
+          <span class="di-value" style="font-size:14px">UCI ML Repository</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Records</span>
+          <span class="di-value green">101,766</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Features</span>
+          <span class="di-value">50</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Target Classes</span>
+          <span class="di-value" style="font-size:14px">No / >30 days / <30 days</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Missing: Weight</span>
+          <span class="di-value" style="color:#FF6B6B">97%</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Dominant Age Group</span>
+          <span class="di-value green">[70-80]</span>
+        </div>
+        <div class="dataset-item">
+          <span class="di-label">Course</span>
+          <span class="di-value" style="font-size:13px">CS4082 · Dr. Naila Marir</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="cross-divider">
+  <div class="cross-line"></div>
+  <div class="cross-sym">✚</div>
+  <div class="cross-line"></div>
+</div>
+
+<!-- PIPELINE -->
+<section class="pipeline" id="pipeline" style="background: var(--dark);">
+  <div class="section-tag">02 · Methodology</div>
+  <h2 class="section-title">ML <span>Pipeline</span></h2>
+  <div class="pipeline-steps reveal">
+    <div class="pipeline-step">
+      <div class="step-icon">📂</div>
+      <div class="step-label">Raw Data<br>Ingestion</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">🧹</div>
+      <div class="step-label">Data<br>Cleaning</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">🔍</div>
+      <div class="step-label">EDA &<br>Profiling</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">⚗️</div>
+      <div class="step-label">Feature<br>Engineering</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">⚖️</div>
+      <div class="step-label">SMOTE<br>Resampling</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">🤖</div>
+      <div class="step-label">Model<br>Training</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">📊</div>
+      <div class="step-label">Evaluation<br>& Tuning</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-icon">🏆</div>
+      <div class="step-label">Best Model<br>Selection</div>
+    </div>
+  </div>
+</section>
+
+<!-- VISUALIZATIONS -->
+<section class="viz-section" id="visualizations">
+  <div class="section-tag">03 · Exploratory Analysis</div>
+  <h2 class="section-title">Interactive <span>Visualizations</span></h2>
+
+  <div class="viz-tabs">
+    <button class="viz-tab active" onclick="showViz(0)">Age Distribution</button>
+    <button class="viz-tab" onclick="showViz(1)">Missing Values</button>
+    <button class="viz-tab" onclick="showViz(2)">Feature Distributions</button>
+    <button class="viz-tab" onclick="showViz(3)">Correlation Heatmap</button>
+    <button class="viz-tab" onclick="showViz(4)">Model Comparison</button>
+    <button class="viz-tab" onclick="showViz(5)">Scalability</button>
+  </div>
+
+  <div class="viz-panel active" id="viz-0">
+    <div class="viz-img-container">
+      <img src="02_age_distribution.png" alt="Patient Age Distribution">
+      <div class="viz-caption">
+        📊 PATIENT AGE DISTRIBUTION — The dataset skews heavily toward older patients, with the [70-80] age group forming the largest cohort (~26,000 patients). This reflects diabetes prevalence in elderly populations and informs model bias considerations.
+      </div>
+    </div>
+  </div>
+  <div class="viz-panel" id="viz-1">
+    <div class="viz-img-container">
+      <img src="03_missing_values.png" alt="Missing Values Analysis">
+      <div class="viz-caption">
+        🔴 MISSING VALUE RATE PER COLUMN — Weight (97% missing) and medical_specialty (49%) were dropped or imputed. A 40% threshold line guided feature retention decisions, ensuring data quality before modeling.
+      </div>
+    </div>
+  </div>
+  <div class="viz-panel" id="viz-2">
+    <div class="viz-img-container">
+      <img src="04_numeric_distributions.png" alt="Numeric Feature Distributions">
+      <div class="viz-caption">
+        📈 NUMERIC FEATURE DISTRIBUTIONS — time_in_hospital shows a right-skewed distribution peaking at 1-3 days. num_lab_procedures follows a near-normal distribution centered at ~45. num_medications peaks around 14-16. number_inpatient is heavily zero-inflated.
+      </div>
+    </div>
+  </div>
+  <div class="viz-panel" id="viz-3">
+    <div class="viz-img-container">
+      <img src="05_correlation_heatmap.png" alt="Correlation Heatmap">
+      <div class="viz-caption">
+        🌡 CORRELATION HEATMAP — Strongest positive correlations: num_medications ↔ time_in_hospital (0.47), num_procedures ↔ num_medications (0.39). Emergency and inpatient visits correlate moderately (0.27). Most features show weak inter-correlation, suggesting diverse predictive signal.
+      </div>
+    </div>
+  </div>
+  <div class="viz-panel" id="viz-4">
+    <div class="viz-img-container">
+      <img src="06_model_comparison.png" alt="Model Comparison">
+      <div class="viz-caption">
+        🤖 MODEL COMPARISON — Logistic Regression and Random Forest tie on most metrics (Accuracy ~66%, F1 ~71%, Precision ~79%). Decision Tree underperforms significantly. LR and RF both show AUC-ROC ~0.59, indicating class imbalance remains a challenge.
+      </div>
+    </div>
+  </div>
+  <div class="viz-panel" id="viz-5">
+    <div class="viz-img-container">
+      <img src="08_scalability_analysis.png" alt="Scalability Analysis">
+      <div class="viz-caption">
+        ⚡ SCALABILITY ANALYSIS — Random Forest training time scales near-linearly from 7.74s (25% = 22,903 rows) to 9.76s (100% = 91,560 rows). Excellent scalability for a full ensemble model, showing sub-linear growth relative to data volume.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- KEY FINDINGS -->
+<section class="findings" id="findings">
+  <div class="section-tag">04 · Key Findings</div>
+  <h2 class="section-title">What We <span>Discovered</span></h2>
+  <div class="findings-grid">
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">🧬</span>
+      <div class="finding-num">FINDING 01</div>
+      <div class="finding-title">Elderly Dominance</div>
+      <div class="finding-body">70-80 year olds form the largest patient cohort, driving strong age-based feature importance.</div>
+      <div class="finding-detail">The dataset is heavily concentrated in the 60-80 age range. This demographic reality means models must be robust to age-correlated comorbidities, polypharmacy, and extended hospital stays. Age group encoding proved a valuable feature in all three models.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">💊</span>
+      <div class="finding-num">FINDING 02</div>
+      <div class="finding-title">Medications Matter</div>
+      <div class="finding-body">num_medications shows the strongest correlation with time_in_hospital (r=0.47), a key predictor.</div>
+      <div class="finding-detail">Patients on more medications tend to stay longer — reflecting disease complexity. This feature also correlated with num_procedures (r=0.39), suggesting a cluster of "high-intervention" patients who may need enhanced post-discharge follow-up to prevent readmission.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">🚨</span>
+      <div class="finding-num">FINDING 03</div>
+      <div class="finding-title">Data Quality Crisis</div>
+      <div class="finding-body">Weight feature was 97% missing — unusable. Three columns exceeded the 40% drop threshold.</div>
+      <div class="finding-detail">Weight, medical_specialty, and payer_code all had missingness above 40% and were dropped. This highlights the systemic data quality challenges in real-world EHR systems. Imputation strategies were applied for race (~2% missing) using mode substitution.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">🌲</span>
+      <div class="finding-num">FINDING 04</div>
+      <div class="finding-title">Forest Wins Robustness</div>
+      <div class="finding-body">Random Forest tied Logistic Regression on metrics but showed significantly better scalability and noise resilience.</div>
+      <div class="finding-detail">Despite near-identical metric scores, Random Forest demonstrated consistent performance across different data fractions and proved more resistant to outliers. Its ensemble nature makes it the recommended choice for production clinical environments where data quality is unpredictable.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">⚖️</span>
+      <div class="finding-num">FINDING 05</div>
+      <div class="finding-title">Class Imbalance Challenge</div>
+      <div class="finding-body">The readmission (&lt;30 days) class was severely underrepresented — requiring SMOTE oversampling.</div>
+      <div class="finding-detail">The target variable had significant imbalance, with early readmissions forming a minority class. SMOTE was applied to generate synthetic samples for the minority class. Despite this, AUC-ROC scores (~0.59) indicate the problem remains challenging — a finding common in clinical readmission prediction literature.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+    <div class="finding-card" onclick="toggleFinding(this)">
+      <span class="finding-icon">⚡</span>
+      <div class="finding-num">FINDING 06</div>
+      <div class="finding-title">Linear Scalability</div>
+      <div class="finding-body">Training time grew from 7.74s to 9.76s as data quadrupled — demonstrating excellent computational efficiency.</div>
+      <div class="finding-detail">Going from 22,903 to 91,560 rows only added ~2 seconds of training time. This sub-linear scaling suggests the Random Forest implementation is well-optimized and could handle much larger datasets without prohibitive compute costs — making it suitable for hospital-scale deployments.</div>
+      <div class="finding-toggle">+ READ MORE</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- MODEL COMPARISON -->
+<section class="models" id="models">
+  <div class="section-tag">05 · Model Performance</div>
+  <h2 class="section-title">Head-to-Head <span>Comparison</span></h2>
+  <div class="models-grid">
+
+    <div class="model-card best" id="card-lr">
+      <div class="model-name">Logistic Regression</div>
+      <div class="model-metrics">
+        <div class="metric-row">
+          <div class="metric-label"><span>AUC-ROC</span><span class="metric-val">0.59</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="59"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Accuracy</span><span class="metric-val">66%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="66"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>F1 Score</span><span class="metric-val">71%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="71"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Precision</span><span class="metric-val">79%</span></div>
+          <div class="metric-bar"><div class="metric-fill maroon" data-width="79"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Recall</span><span class="metric-val">66%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="66"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="model-card" id="card-dt">
+      <div class="model-name">Decision Tree</div>
+      <div class="model-metrics">
+        <div class="metric-row">
+          <div class="metric-label"><span>AUC-ROC</span><span class="metric-val">0.50</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="50"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Accuracy</span><span class="metric-val">52%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="52"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>F1 Score</span><span class="metric-val">59%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="59"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Precision</span><span class="metric-val">80%</span></div>
+          <div class="metric-bar"><div class="metric-fill maroon" data-width="80"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Recall</span><span class="metric-val">52%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="52"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="model-card" id="card-rf">
+      <div class="model-name">Random Forest</div>
+      <div class="model-metrics">
+        <div class="metric-row">
+          <div class="metric-label"><span>AUC-ROC</span><span class="metric-val">0.59</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="59"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Accuracy</span><span class="metric-val">66%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="66"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>F1 Score</span><span class="metric-val">71%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="71"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Precision</span><span class="metric-val">79%</span></div>
+          <div class="metric-bar"><div class="metric-fill maroon" data-width="79"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>Recall</span><span class="metric-val">66%</span></div>
+          <div class="metric-bar"><div class="metric-fill green" data-width="66"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- SCALABILITY -->
+<section class="scalability" id="scalability">
+  <div class="section-tag">06 · Scalability</div>
+  <h2 class="section-title">Performance at <span>Scale</span></h2>
+  <div class="scale-grid">
+    <div class="scale-stats reveal">
+      <div class="scale-stat">
+        <div class="scale-stat-info">
+          <span>25% Fraction</span>
+          <span>7.74s · 22,903 rows</span>
+        </div>
+        <div class="scale-badge">BASELINE</div>
+      </div>
+      <div class="scale-stat">
+        <div class="scale-stat-info">
+          <span>50% Fraction</span>
+          <span>8.56s · 45,978 rows</span>
+        </div>
+        <div class="scale-badge">+10.6%</div>
+      </div>
+      <div class="scale-stat">
+        <div class="scale-stat-info">
+          <span>75% Fraction</span>
+          <span>8.81s · 68,848 rows</span>
+        </div>
+        <div class="scale-badge">+13.8%</div>
+      </div>
+      <div class="scale-stat">
+        <div class="scale-stat-info">
+          <span>100% Fraction</span>
+          <span>9.76s · 91,560 rows</span>
+        </div>
+        <div class="scale-badge">+26.1%</div>
+      </div>
+    </div>
+    <div class="viz-img-container reveal reveal-delay-2">
+      <img src="08_scalability_analysis.png" alt="Scalability Analysis" style="width:100%">
+    </div>
+  </div>
+</section>
+
+<div class="cross-divider">
+  <div class="cross-line"></div>
+  <div class="cross-sym">✚</div>
+  <div class="cross-line"></div>
+</div>
+
+<!-- TEAM -->
+<section class="team" id="team">
+  <div class="section-tag">07 · The Team</div>
+  <h2 class="section-title">The <span>Researchers</span></h2>
+  <div class="team-grid">
+
+    <div class="team-card reveal">
+      <div class="avatar-wrap">👩‍💻</div>
+      <div class="team-name">Aseel Bajaber</div>
+      <div class="team-role">ML Engineer</div>
+      <div class="team-course">CS4082 · Machine Learning<br><span style="color:var(--gray-mid);font-size:11px">Dr. Naila Marir</span></div>
+      <p class="team-desc">A passionate computer science student at Effat University, interested in building intelligent systems, exploring data-driven solutions, and continuously learning new technologies.</p>
+      <a href="https://github.com/aseelmoh" target="_blank" class="team-btn">GitHub Profile</a>
+    </div>
+
+    <div class="team-card reveal reveal-delay-1">
+      <div class="avatar-wrap">👩‍🔬</div>
+      <div class="team-name">Jumanah AlNahdi</div>
+      <div class="team-role">ML Engineer</div>
+      <div class="team-course">CS4082 · Machine Learning<br><span style="color:var(--gray-mid);font-size:11px">Dr. Naila Marir</span></div>
+      <p class="team-desc">A dedicated CS student who enjoys problem solving and analytical thinking, with strong curiosity for AI, software development, and creating impactful digital solutions.</p>
+      <a href="https://github.com/jumanah95" target="_blank" class="team-btn">GitHub Profile</a>
+    </div>
+
+    <div class="team-card reveal reveal-delay-2">
+      <div class="avatar-wrap">👩‍💻</div>
+      <div class="team-name">Nafeesa Mahek</div>
+      <div class="team-role">ML Engineer</div>
+      <div class="team-course">CS4082 · Machine Learning<br><span style="color:var(--gray-mid);font-size:11px">Dr. Naila Marir</span></div>
+      <p class="team-desc">A curious and driven CS student passionate about coding, building efficient systems, and exploring data structures, with a creative mindset and interest in scalable applications.</p>
+      <a href="https://nafeesa-mahek.github.io/" target="_blank" class="team-btn">View Portfolio</a>
+    </div>
+
+    <div class="team-card reveal reveal-delay-3">
+      <div class="avatar-wrap">👩‍🔧</div>
+      <div class="team-name">Hams Al Johani</div>
+      <div class="team-role">ML Engineer</div>
+      <div class="team-course">CS4082 · Machine Learning<br><span style="color:var(--gray-mid);font-size:11px">Dr. Naila Marir</span></div>
+      <p class="team-desc">A motivated CS student focused on software development and user-centered design, interested in creating intuitive digital experiences and improving technical problem-solving skills.</p>
+      <a href="https://hams770.github.io/Hams-Aljohani-Portfolio/" target="_blank" class="team-btn">View Portfolio</a>
+    </div>
+
+  </div>
+</section>
+
+<!-- LINKS -->
+<section class="links" id="links">
+  <div class="section-tag">08 · Resources</div>
+  <h2 class="section-title">Access the <span>Project</span></h2>
+  <div class="links-grid">
+
+    <a href="https://github.com/Hams770/Resilient-Clinical-Outcome-Prediction-from-Noisy-Medical-Records" target="_blank" class="link-card reveal">
+      <span class="link-icon">🐙</span>
+      <div class="link-title">GitHub Repository</div>
+      <div class="link-desc">Full source code, notebooks, preprocessing scripts, model training pipelines, and all project assets.</div>
+      <div class="link-url">github.com/Hams770/Resilient-Clinical-Outcome-Prediction</div>
+    </a>
+
+    <a href="https://github.com/Hams770/Resilient-Clinical-Outcome-Prediction-from-Noisy-Medical-Records/blob/main/content/diabetic_data.csv" target="_blank" class="link-card reveal reveal-delay-1">
+      <span class="link-icon">🗃️</span>
+      <div class="link-title">Dataset</div>
+      <div class="link-desc">UCI Diabetes 130-US Hospitals Dataset — 101,766 patient encounters, 50 features, 10 years of clinical data.</div>
+      <div class="link-url">diabetic_data.csv · UCI 130-US Hospitals</div>
+    </a>
+
+    <a href="https://github.com/Hams770/Resilient-Clinical-Outcome-Prediction-from-Noisy-Medical-Records/blob/main/content/ClinicalOutcomePrediction_BigDataFinalReport.zip" target="_blank" class="link-card reveal reveal-delay-2">
+      <span class="link-icon">📄</span>
+      <div class="link-title">Technical Report</div>
+      <div class="link-desc">Full academic report covering methodology, feature engineering, model evaluation, and clinical implications.</div>
+      <div class="link-url">ClinicalOutcomePrediction_BigDataFinalReport.zip</div>
+    </a>
+
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">
+    ✚ CS4082 · Machine Learning · Effat University<br>
+    <span style="opacity:0.5;font-size:10px">Dr. Naila Marir · 2024-2025</span>
+  </div>
+  <div class="footer-right">
+    RESILIENT CLINICAL OUTCOME PREDICTION<br>
+    <span style="opacity:0.5">FROM NOISY MEDICAL RECORDS</span>
+  </div>
+</footer>
+
+<script>
+// CURSOR
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+  setTimeout(() => {
+    ring.style.left = e.clientX + 'px';
+    ring.style.top = e.clientY + 'px';
+  }, 80);
+});
+
+// ECG CANVAS
+const canvas = document.getElementById('ecgCanvas');
+const ctx = canvas.getContext('2d');
+function resizeECG() {
+  canvas.width = window.innerWidth;
+  canvas.height = 40;
+}
+resizeECG();
+window.addEventListener('resize', resizeECG);
+
+let ecgX = 0;
+const ecgPoints = [];
+function genECGY(x) {
+  const phase = (x % 200) / 200;
+  if (phase < 0.05) return 20 + Math.sin(phase/0.05 * Math.PI) * 8;
+  if (phase < 0.08) return 20 - Math.sin((phase-0.05)/0.03 * Math.PI) * 18;
+  if (phase < 0.15) return 20 + Math.sin((phase-0.08)/0.07 * Math.PI) * 30;
+  if (phase < 0.2) return 20 - Math.sin((phase-0.15)/0.05 * Math.PI) * 10;
+  if (phase < 0.25) return 20 + Math.sin((phase-0.2)/0.05 * Math.PI) * 5;
+  return 20 + Math.sin(phase * Math.PI * 2) * 1.5;
+}
+
+function drawECG() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ecgX += 2;
+  if (ecgX > canvas.width + 400) ecgX = 0;
+
+  ctx.beginPath();
+  ctx.strokeStyle = '#00FF88';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#00FF88';
+  ctx.shadowBlur = 8;
+
+  for (let x = 0; x < canvas.width; x += 2) {
+    const y = genECGY(x + ecgX);
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  requestAnimationFrame(drawECG);
+}
+drawECG();
+
+// VIZ TABS
+function showViz(idx) {
+  document.querySelectorAll('.viz-panel').forEach((p, i) => {
+    p.classList.toggle('active', i === idx);
+  });
+  document.querySelectorAll('.viz-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+  });
+}
+
+// FINDING CARDS TOGGLE
+function toggleFinding(card) {
+  const wasOpen = card.classList.contains('open');
+  document.querySelectorAll('.finding-card').forEach(c => {
+    c.classList.remove('open');
+    c.querySelector('.finding-toggle').textContent = '+ READ MORE';
+  });
+  if (!wasOpen) {
+    card.classList.add('open');
+    card.querySelector('.finding-toggle').textContent = '− CLOSE';
+  }
+}
+
+// SCROLL REVEAL
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('visible');
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// METRIC BARS
+const barObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.metric-fill').forEach(bar => {
+        const w = bar.getAttribute('data-width');
+        setTimeout(() => { bar.style.width = w + '%'; }, 200);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.model-card').forEach(el => barObserver.observe(el));
+
+// COUNTER ANIMATION
+function animateCounter(el, target, suffix = '') {
+  let start = 0; const duration = 2000;
+  const step = timestamp => {
+    if (!start) start = timestamp;
+    const progress = Math.min((timestamp - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const value = Math.floor(eased * target);
+    el.textContent = value.toLocaleString() + suffix;
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+const counterObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const count = e.target.getAttribute('data-count');
+      const suffix = e.target.getAttribute('data-suffix') || '';
+      if (count) animateCounter(e.target, parseInt(count), suffix);
+      else if (suffix) e.target.textContent = e.target.textContent; // static
+      counterObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
+</script>
+</body>
+</html>
